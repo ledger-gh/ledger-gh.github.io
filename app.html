@@ -3013,6 +3013,7 @@ async function loadAdmin(){
  try{var bi=await sb.rpc('ledger_admin_biz_info');if(!bi.error)(bi.data||[]).forEach(function(x){adminInfo[x.user_id]=x;});}catch(e){}
  try{adminBizPlans={};var bp=await sb.rpc('ledger_admin_businesses');if(!bp.error)(bp.data||[]).forEach(function(x){(adminBizPlans[x.owner_id]=adminBizPlans[x.owner_id]||[]).push(x);});}catch(e){}
  try{var dl=await sb.rpc('ledger_admin_deleted_list');if(!dl.error)adminDeleted=dl.data||[];}catch(e){}
+ try{window.__devPlan={};var dpl=await sb.rpc('ledger_admin_device_plans');if(!dpl.error)(dpl.data||[]).forEach(function(x){window.__devPlan[x.device_id]=x;});}catch(e){}
  drawAdmin();
 }
 window.adminSearch=function(v){adminQ=v;drawAdmin();};
@@ -3035,7 +3036,7 @@ function drawAdmin(){
   if(adminOpen[a.user_id]){
    dl='<div style="margin-top:8px">'+(devs.length?devs.map(function(d){
     var blocked=d.status!=='active';
-    return '<div style="border-top:1px solid var(--line);padding:8px 0"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+esc(uaName(d.user_agent))+'</b> <span class="small">'+esc(d.platform||'')+'</span><div class="small">Last used '+shortDate(d.last_active_at)+' · Added '+shortDate(d.registered_at)+'</div></div><span class="tag'+(blocked?' warn':'')+'">'+esc(d.status)+'</span></div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="adminDev(\''+d.id+'\',\''+(blocked?'unblock':'block')+'\')">'+(blocked?'Unblock':'Block')+'</button><button class="btn danger" onclick="adminDev(\''+d.id+'\',\'remove\')">Remove</button></div></div>';
+    return '<div style="border-top:1px solid var(--line);padding:8px 0"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+esc(uaName(d.user_agent))+'</b> <span class="small">'+esc(d.platform||'')+'</span><div class="small">Last used '+shortDate(d.last_active_at)+' · Added '+shortDate(d.registered_at)+'</div>'+devPlanTag(d.id)+'</div><span class="tag'+(blocked?' warn':'')+'">'+esc(d.status)+'</span></div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="adminDev(\''+d.id+'\',\''+(blocked?'unblock':'block')+'\')">'+(blocked?'Unblock':'Block')+'</button><button class="btn danger" onclick="adminDev(\''+d.id+'\',\'remove\')">Remove</button></div>'+devPlanBtns(d.id)+'</div>';
    }).join(''):'<div class="small">No devices yet.</div>')+'</div>';
   }
   return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:600;word-break:break-all">'+esc(a.email)+'</div><div class="small">Expires: '+(a.expires_at?dateStr(a.expires_at):'—')+' · Last login: '+(a.last_sign_in_at?dateStr(a.last_sign_in_at.slice(0,10)):'—')+'</div></div><span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;color:'+cl[0]+';background:'+cl[1]+'">'+lab+'</span></div>'+
@@ -3091,6 +3092,15 @@ window.adminRestore=async function(bid){
  var d=adminDeleted.filter(function(x){return x.id===bid;})[0];
  if(!confirm('Restore '+(d?d.email:'this account')+'? Their login, devices, subscription and businesses come back exactly as they were.'))return;
  var r=await sb.rpc('ledger_admin_restore',{p_backup:bid});
+ if(r.error){alert(r.error.message);return;}
+ loadAdmin();
+};
+window.devPlanTag=function(id){var p=(window.__devPlan||{})[id];if(!p)return '<div class="small" style="margin-top:2px">Follows the account date</div>';if(p.lifetime)return '<div class="small" style="margin-top:2px;color:#166534"><b>Permanent</b> (one-time purchase)</div>';var dd=new Date(p.paid_until+'T00:00:00'),n=Math.round((dd-new Date(new Date().toDateString()))/864e5);return '<div class="small" style="margin-top:2px;color:'+(n<0?'#991b1b':'#92400e')+'"><b>Subscription</b> · '+(n<0?'ended ':'until ')+dd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+(n>=0?' · '+n+'d left':'')+'</div>';};
+window.devPlanBtns=function(id){return '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn" onclick="adminDevPlan(\''+id+'\',\'permanent\')">Make permanent</button><button class="btn" onclick="adminDevPlan(\''+id+'\',\'add30\')">+30 days (this device)</button><button class="btn" onclick="adminDevPlan(\''+id+'\',\'clear\')">Follow account</button></div>';};
+window.adminDevPlan=async function(did,a){
+ var msg=a==='permanent'?'Make this device permanent? It will never lock.':a==='clear'?'Make this device follow the account date again?':'Add 30 days to this device only?';
+ if(!confirm(msg))return;
+ var r=await sb.rpc('ledger_admin_device_plan',{p_device:did,p_action:a});
  if(r.error){alert(r.error.message);return;}
  loadAdmin();
 };
